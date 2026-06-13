@@ -26,6 +26,15 @@
   "manifest": {
     "host_permissions": [
       "https://*/*"
-    ]
+    ],
+    "permissions": [
+      "contextMenus",
+      "sidePanel",
+      "storage",
+      "tabs"
+    ],
+    "side_panel": {
+      "default_path": "sidepanel.html"
+    }
   }
 }
