@@ -32,10 +32,20 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     return
   }
 
+  let domain = "unknown"
+  if (tab.url) {
+    try {
+      domain = new URL(tab.url).hostname
+    } catch {
+      domain = "unknown"
+    }
+  }
+
   await chrome.storage.session.set({
     [STORAGE_KEYS.EXPLAIN_REQUEST]: {
       text: info.selectionText.trim(),
-      requestId: crypto.randomUUID()
+      requestId: crypto.randomUUID(),
+      domain
     }
   })
 

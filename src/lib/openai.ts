@@ -1,9 +1,27 @@
+import type { ChatMessage } from "~/lib/constants"
 import { getApiKey } from "~/lib/storage"
 
 const EXPLAIN_SYSTEM_PROMPT =
   "You are a helpful English tutor. Explain selected text clearly in simple English. Cover meaning, context, and any difficult words or phrases."
 
-export async function explainText(text: string): Promise<string> {
+const MAX_CONTEXT_MESSAGES = 20
+
+function toOpenAiMessages(history: ChatMessage[], userMessage: string) {
+  const recentHistory = history
+    .slice(-MAX_CONTEXT_MESSAGES)
+    .map((message) => ({ role: message.role, content: message.content }))
+
+  return [
+    { role: "system", content: EXPLAIN_SYSTEM_PROMPT },
+    ...recentHistory,
+    { role: "user", content: userMessage }
+  ]
+}
+
+export async function chatWithContext(
+  userMessage: string,
+  history: ChatMessage[]
+): Promise<string> {
   const apiKey = await getApiKey()
   if (!apiKey) {
     throw new Error(
@@ -19,13 +37,7 @@ export async function explainText(text: string): Promise<string> {
     },
     body: JSON.stringify({
       model: "gpt-4o-mini",
-      messages: [
-        { role: "system", content: EXPLAIN_SYSTEM_PROMPT },
-        {
-          role: "user",
-          content: `Explain the following text in English:\n\n"${text}"`
-        }
-      ],
+      messages: toOpenAiMessages(history, userMessage),
       temperature: 0.7
     })
   })

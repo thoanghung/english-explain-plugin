@@ -6,12 +6,25 @@ Replace the current stateless explain flow with a persistent chat experience.
 Each subdomain gets its own conversation stored in `chrome.storage.local`.
 Right-click selected text should pre-fill the chat input, and users can send follow-up messages manually.
 
+## Implementation Status
+
+- Implemented in codebase
+- Type check passed (`pnpm -s tsc --noEmit`)
+
 ## Decisions
 
 - Conversation scope: subdomain (`docs.example.com` is separate from `app.example.com`)
 - Retention: persistent across browser restarts
 - Cost control: limit context and history size per conversation
 - Input mode: full chat input in side panel + right-click prefill
+
+## Library Note
+
+Requested library: `react-native-gifted-chat`.
+
+This repository is a web extension using React DOM, while `react-native-gifted-chat` depends on React Native runtime packages (`react-native`, `react-native-reanimated`, `react-native-gesture-handler`, etc.), so it cannot run in this stack.
+
+Implemented alternative: a Gifted-Chat-style web layout in the sidepanel (`message bubbles`, `scrollable transcript`, `sticky composer`) without adding incompatible React Native dependencies.
 
 ## Data Model
 
@@ -40,7 +53,6 @@ type ConversationsMap = Record<string, DomainConversation>
 ## Storage Rules
 
 - Use `chrome.storage.local` for conversation history
-- Keep max `50` messages per domain (drop oldest when exceeded)
 - Remove messages older than `30` days during read/write pruning
 - Send only the most recent `N` messages (start with `20`) to OpenAI for each request
 
@@ -60,7 +72,7 @@ Update `src/lib/storage.ts`:
 
 - Add `getDomainConversation(domain)`
 - Add `saveDomainConversation(domain, messages)`
-- Add prune helper (TTL + max messages)
+- Add prune helper (TTL only, no max-message cap)
 
 ### 3) OpenAI API Layer
 
@@ -115,14 +127,13 @@ Update `src/options.tsx`:
 2. Sending message shows user bubble, loading state, and assistant response
 3. Reopening side panel on same subdomain restores conversation
 4. Different subdomain starts a separate conversation
-5. History is capped at 50 messages per domain
-6. Old messages beyond 30 days are pruned
-7. Clear history action removes all stored conversations
-8. Type check passes (`tsc --noEmit`)
+5. Old messages beyond 30 days are pruned
+6. Clear history action removes all stored conversations
+7. Type check passes (`tsc --noEmit`)
 
 ## Risks and Mitigations
 
-- Storage growth: capped messages + TTL pruning
+- Storage growth: TTL pruning + manual clear-history action
 - Token/cost growth: send only recent `N` messages
 - Domain ambiguity: use exact hostname to keep contexts isolated
 - Privacy concerns: provide clear-history control in options

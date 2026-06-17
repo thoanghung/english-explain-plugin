@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react"
 
-import { getApiKey, setApiKey } from "~/lib/storage"
+import { clearConversationHistory, getApiKey, setApiKey } from "~/lib/storage"
 
 function OptionsPage() {
   const [apiKey, setApiKeyValue] = useState("")
   const [saved, setSaved] = useState(false)
+  const [historyCleared, setHistoryCleared] = useState(false)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -21,6 +22,12 @@ function OptionsPage() {
     await setApiKey(apiKey)
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
+  }
+
+  const handleClearHistory = async () => {
+    await clearConversationHistory()
+    setHistoryCleared(true)
+    setTimeout(() => setHistoryCleared(false), 2000)
   }
 
   if (loading) {
@@ -74,6 +81,38 @@ function OptionsPage() {
           <p style={{ marginTop: 12, color: "#059669" }}>Settings saved.</p>
         )}
       </form>
+
+      <section
+        style={{
+          marginTop: 24,
+          paddingTop: 16,
+          borderTop: "1px solid #e2e8f0"
+        }}>
+        <h2 style={{ margin: 0, fontSize: "1rem" }}>Conversation history</h2>
+        <p style={{ color: "#64748b", marginTop: 8 }}>
+          Clear all saved domain conversations from local extension storage.
+        </p>
+        <button
+          type="button"
+          onClick={handleClearHistory}
+          style={{
+            marginTop: 8,
+            padding: "10px 16px",
+            borderRadius: 8,
+            border: "none",
+            background: "#b91c1c",
+            color: "white",
+            cursor: "pointer"
+          }}>
+          Clear conversation history
+        </button>
+
+        {historyCleared && (
+          <p style={{ marginTop: 12, color: "#059669" }}>
+            Conversation history cleared.
+          </p>
+        )}
+      </section>
     </main>
   )
 }
