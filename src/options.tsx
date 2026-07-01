@@ -90,7 +90,7 @@ function OptionsPage() {
         }}>
         <h2 style={{ margin: 0, fontSize: "1rem" }}>Conversation history</h2>
         <p style={{ color: "#64748b", marginTop: 8 }}>
-          Clear all saved domain conversations from local extension storage.
+          Clear all saved page URL conversations from local extension storage.
         </p>
         <button
           type="button"

@@ -7,12 +7,12 @@ import {
   type ExplainRequest
 } from "~/lib/constants"
 import { chatWithContext } from "~/lib/openai"
-import { getDomainConversation, saveDomainConversation } from "~/lib/storage"
+import { getPageConversation, savePageConversation } from "~/lib/storage"
 
 import "./sidepanel.css"
 
 type ChatState = {
-  domain: string | null
+  pageUrl: string | null
   messages: ChatMessage[]
   inputValue: string
   loading: boolean
@@ -20,7 +20,7 @@ type ChatState = {
 }
 
 const emptyState: ChatState = {
-  domain: null,
+  pageUrl: null,
   messages: [],
   inputValue: "",
   loading: false,
@@ -29,9 +29,19 @@ const emptyState: ChatState = {
 
 function SidePanel() {
   const [state, setState] = useState<ChatState>(emptyState)
-  const [currentDomain, setCurrentDomain] = useState<string | null>(null)
+  const [currentPageUrl, setCurrentPageUrl] = useState<string | null>(null)
 
-  const getCurrentTabDomain = useCallback(async (): Promise<string | null> => {
+  const normalizeConversationUrl = useCallback((rawUrl: string) => {
+    try {
+      const url = new URL(rawUrl)
+      url.search = ""
+      return url.toString()
+    } catch {
+      return null
+    }
+  }, [])
+
+  const getCurrentTabUrl = useCallback(async (): Promise<string | null> => {
     const tabs = await chrome.tabs.query({ active: true, currentWindow: true })
     const activeTabUrl = tabs[0]?.url
 
@@ -39,25 +49,21 @@ function SidePanel() {
       return null
     }
 
-    try {
-      return new URL(activeTabUrl).hostname
-    } catch {
-      return null
-    }
-  }, [])
+    return normalizeConversationUrl(activeTabUrl)
+  }, [normalizeConversationUrl])
 
-  const openDomainConversation = useCallback(
-    async (domain: string, prefillText?: string) => {
-      const messages = await getDomainConversation(domain)
+  const openPageConversation = useCallback(
+    async (pageUrl: string, prefillText?: string) => {
+      const messages = await getPageConversation(pageUrl)
       setState((current) => ({
         ...current,
-        domain,
+        pageUrl,
         messages,
         inputValue: prefillText
-          ? current.domain === domain && current.inputValue.trim()
+          ? current.pageUrl === pageUrl && current.inputValue.trim()
             ? `${current.inputValue}\n${prefillText}`
             : prefillText
-          : current.domain === domain
+          : current.pageUrl === pageUrl
             ? current.inputValue
             : "",
         error: null
@@ -66,16 +72,16 @@ function SidePanel() {
     []
   )
 
-  const loadDomainConversation = useCallback(
+  const loadPageConversation = useCallback(
     async (request: ExplainRequest) => {
-      setCurrentDomain(request.domain)
-      await openDomainConversation(request.domain)
+      setCurrentPageUrl(request.pageUrl)
+      await openPageConversation(request.pageUrl)
     },
-    [openDomainConversation]
+    [openPageConversation]
   )
 
-  const sendDomainMessage = useCallback(
-    async (domain: string, content: string, history: ChatMessage[]) => {
+  const sendPageMessage = useCallback(
+    async (pageUrl: string, content: string, history: ChatMessage[]) => {
       const userMessage: ChatMessage = {
         role: "user",
         content: content.trim(),
@@ -86,7 +92,7 @@ function SidePanel() {
 
       setState((current) => ({
         ...current,
-        domain,
+        pageUrl,
         messages: messagesWithUser,
         inputValue: "",
         loading: true,
@@ -105,11 +111,11 @@ function SidePanel() {
         }
 
         const messagesWithAssistant = [...messagesWithUser, assistantMessage]
-        await saveDomainConversation(domain, messagesWithAssistant)
+        await savePageConversation(pageUrl, messagesWithAssistant)
 
         setState((current) => ({
           ...current,
-          domain,
+          pageUrl,
           messages: messagesWithAssistant,
           loading: false,
           error: null
@@ -117,7 +123,7 @@ function SidePanel() {
       } catch (error) {
         setState((current) => ({
           ...current,
-          domain,
+          pageUrl,
           loading: false,
           error: error instanceof Error ? error.message : "Something went wrong"
         }))
@@ -127,29 +133,29 @@ function SidePanel() {
   )
 
   const sendMessage = useCallback(async () => {
-    if (!state.domain || !state.inputValue.trim() || state.loading) {
+    if (!state.pageUrl || !state.inputValue.trim() || state.loading) {
       return
     }
 
-    await sendDomainMessage(state.domain, state.inputValue, state.messages)
+    await sendPageMessage(state.pageUrl, state.inputValue, state.messages)
   }, [
-    sendDomainMessage,
-    state.domain,
+    sendPageMessage,
+    state.pageUrl,
     state.inputValue,
     state.loading,
     state.messages
   ])
 
   const syncConversationFromActiveTab = useCallback(async () => {
-    const domain = await getCurrentTabDomain()
-    setCurrentDomain(domain)
+    const pageUrl = await getCurrentTabUrl()
+    setCurrentPageUrl(pageUrl)
 
-    if (!domain) {
+    if (!pageUrl) {
       setState((current) =>
-        current.domain
+        current.pageUrl
           ? {
               ...current,
-              domain: null,
+              pageUrl: null,
               messages: [],
               inputValue: ""
             }
@@ -158,8 +164,8 @@ function SidePanel() {
       return
     }
 
-    await openDomainConversation(domain)
-  }, [getCurrentTabDomain, openDomainConversation])
+    await openPageConversation(pageUrl)
+  }, [getCurrentTabUrl, openPageConversation])
 
   useEffect(() => {
     const loadRequest = async () => {
@@ -170,10 +176,10 @@ function SidePanel() {
         | ExplainRequest
         | undefined
 
-      if (request?.text && request.domain) {
-        await loadDomainConversation(request)
-        const history = await getDomainConversation(request.domain)
-        await sendDomainMessage(request.domain, request.text, history)
+      if (request?.text && request.pageUrl) {
+        await loadPageConversation(request)
+        const history = await getPageConversation(request.pageUrl)
+        await sendPageMessage(request.pageUrl, request.text, history)
         return
       }
 
@@ -194,9 +200,9 @@ function SidePanel() {
       if (change?.newValue) {
         const request = change.newValue as ExplainRequest
         void (async () => {
-          await loadDomainConversation(request)
-          const history = await getDomainConversation(request.domain)
-          await sendDomainMessage(request.domain, request.text, history)
+          await loadPageConversation(request)
+          const history = await getPageConversation(request.pageUrl)
+          await sendPageMessage(request.pageUrl, request.text, history)
         })()
       }
     }
@@ -231,7 +237,7 @@ function SidePanel() {
       chrome.tabs.onActivated.removeListener(onTabActivated)
       chrome.tabs.onUpdated.removeListener(onTabUpdated)
     }
-  }, [loadDomainConversation, sendDomainMessage, syncConversationFromActiveTab])
+  }, [loadPageConversation, sendPageMessage, syncConversationFromActiveTab])
 
   const sortedMessages = useMemo(
     () => [...state.messages].sort((a, b) => a.timestamp - b.timestamp),
@@ -248,19 +254,19 @@ function SidePanel() {
   }
 
   const handleStartChat = async () => {
-    const domain = currentDomain ?? (await getCurrentTabDomain())
+    const pageUrl = currentPageUrl ?? (await getCurrentTabUrl())
 
-    if (!domain) {
+    if (!pageUrl) {
       setState((current) => ({
         ...current,
         error:
-          "Could not detect the current domain. Open a webpage and try again."
+          "Could not detect the current page URL. Open a webpage and try again."
       }))
       return
     }
 
-    setCurrentDomain(domain)
-    await openDomainConversation(domain)
+    setCurrentPageUrl(pageUrl)
+    await openPageConversation(pageUrl)
   }
 
   return (
@@ -268,29 +274,29 @@ function SidePanel() {
       <header className="panel-header">
         <h1>AI Pocket</h1>
         <p>
-          {state.domain
-            ? `Conversation: ${state.domain}`
-            : "Open a webpage and start chat for its domain"}
+          {state.pageUrl
+            ? `Conversation: ${state.pageUrl}`
+            : "Open a webpage and start chat for its URL"}
         </p>
       </header>
 
-      {!state.domain && (
+      {!state.pageUrl && (
         <section className="panel-empty">
           <p>
-            {currentDomain
-              ? `Current domain: ${currentDomain}`
+            {currentPageUrl
+              ? `Current URL: ${currentPageUrl}`
               : "No active page detected in this window."}
           </p>
           <strong>Start chat now or right-click selected text.</strong>
           <button type="button" onClick={() => void handleStartChat()}>
-            Start Chat For Current Domain
+            Start Chat For Current URL
           </button>
         </section>
       )}
 
-      {state.domain && sortedMessages.length === 0 && !state.loading && (
+      {state.pageUrl && sortedMessages.length === 0 && !state.loading && (
         <section className="panel-empty panel-empty-chat">
-          <p>This domain has no messages yet.</p>
+          <p>This page has no messages yet.</p>
           <strong>
             Type a question below or use right-click text selection.
           </strong>
@@ -341,11 +347,13 @@ function SidePanel() {
           }
           placeholder="Ask about selected text or type a follow-up"
           rows={3}
-          disabled={!state.domain || state.loading}
+          disabled={!state.pageUrl || state.loading}
         />
         <button
           type="submit"
-          disabled={!state.domain || state.loading || !state.inputValue.trim()}>
+          disabled={
+            !state.pageUrl || state.loading || !state.inputValue.trim()
+          }>
           Send
         </button>
       </form>

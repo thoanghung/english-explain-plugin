@@ -14,16 +14,16 @@ export interface ChatMessage {
   timestamp: number
 }
 
-export interface DomainConversation {
-  domain: string
+export interface PageConversation {
+  pageUrl: string
   messages: ChatMessage[]
   lastActive: number
 }
 
-export type ConversationsMap = Record<string, DomainConversation>
+export type ConversationsMap = Record<string, PageConversation>
 
 export type ExplainRequest = {
   text: string
   requestId: string
-  domain: string
+  pageUrl: string
 }

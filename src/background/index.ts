@@ -2,6 +2,16 @@ import { CONTEXT_MENU_ID, STORAGE_KEYS } from "~/lib/constants"
 
 chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true })
 
+function normalizeConversationUrl(rawUrl: string): string | null {
+  try {
+    const url = new URL(rawUrl)
+    url.search = ""
+    return url.toString()
+  } catch {
+    return null
+  }
+}
+
 function registerContextMenu() {
   chrome.contextMenus.create(
     {
@@ -32,20 +42,17 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     return
   }
 
-  let domain = "unknown"
-  if (tab.url) {
-    try {
-      domain = new URL(tab.url).hostname
-    } catch {
-      domain = "unknown"
-    }
+  const pageUrl = tab.url ? normalizeConversationUrl(tab.url) : null
+
+  if (!pageUrl) {
+    return
   }
 
   await chrome.storage.session.set({
     [STORAGE_KEYS.EXPLAIN_REQUEST]: {
       text: info.selectionText.trim(),
       requestId: crypto.randomUUID(),
-      domain
+      pageUrl
     }
   })
 

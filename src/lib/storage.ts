@@ -33,11 +33,11 @@ export async function setApiKey(apiKey: string): Promise<void> {
   await chrome.storage.sync.set({ [STORAGE_KEYS.API_KEY]: apiKey.trim() })
 }
 
-export async function getDomainConversation(
-  domain: string
+export async function getPageConversation(
+  pageUrl: string
 ): Promise<ChatMessage[]> {
   const conversations = await getConversationsMap()
-  const conversation = conversations[domain]
+  const conversation = conversations[pageUrl]
 
   if (!conversation) {
     return []
@@ -46,7 +46,7 @@ export async function getDomainConversation(
   const prunedMessages = pruneExpiredMessages(conversation.messages)
 
   if (prunedMessages.length !== conversation.messages.length) {
-    conversations[domain] = {
+    conversations[pageUrl] = {
       ...conversation,
       messages: prunedMessages,
       lastActive: Date.now()
@@ -59,13 +59,13 @@ export async function getDomainConversation(
   return prunedMessages
 }
 
-export async function saveDomainConversation(
-  domain: string,
+export async function savePageConversation(
+  pageUrl: string,
   messages: ChatMessage[]
 ): Promise<void> {
   const conversations = await getConversationsMap()
-  conversations[domain] = {
-    domain,
+  conversations[pageUrl] = {
+    pageUrl,
     messages: pruneExpiredMessages(messages),
     lastActive: Date.now()
   }
